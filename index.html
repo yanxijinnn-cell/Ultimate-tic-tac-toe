@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Ultimate TTT: Geometric Edition</title>
+    <title>Ultimate TTT: Classic Red & Blue</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -14,7 +14,8 @@
     
     <style>
         /* --- CORE VARIABLES --- */
-        :root { --bg-color: #2c3e50; --panel-bg: rgba(255, 255, 255, 0.1); --board-bg: rgba(255, 255, 255, 0.05); --cell-bg: rgba(255, 255, 255, 0.9); --highlight: #f1c40f; --x-color: #ff4757; --o-color: #2ed573; --text-color: #ffffff; --font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        /* CHANGED: --o-color is now Blue (#3498db) to match your request */
+        :root { --bg-color: #2c3e50; --panel-bg: rgba(255, 255, 255, 0.1); --board-bg: rgba(255, 255, 255, 0.05); --cell-bg: rgba(255, 255, 255, 0.9); --highlight: #f1c40f; --x-color: #ff4757; --o-color: #3498db; --text-color: #ffffff; --font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         
         /* BACKGROUND */
         body { 
@@ -35,7 +36,6 @@
         /* BUTTONS */
         button { padding: 12px 24px; margin: 5px; cursor: pointer; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(5px); border: 1px solid rgba(255, 255, 255, 0.3); color: white; border-radius: 25px; font-size: 1rem; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.2s; }
         button:hover { transform: translateY(-2px); background: rgba(255, 255, 255, 0.3); }
-        button:active { transform: translateY(2px); box-shadow: none; }
         button.primary-btn { background: var(--highlight); color: black; width: 100%; margin-top: 10px; }
         button.secondary-btn { background: #34495e; width: 100%; margin-top: 10px; }
         
@@ -43,7 +43,7 @@
         .auth-box { background: rgba(0,0,0,0.6); padding: 30px; border-radius: 20px; backdrop-filter: blur(10px); width: 90%; max-width: 400px; margin: 20px auto; border: 1px solid rgba(255,255,255,0.2); }
         input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: none; font-size: 1rem; box-sizing: border-box; }
         
-        /* --- AVATAR SYSTEM (For Profile & Builder) --- */
+        /* --- AVATAR SYSTEM (Still used for Profile) --- */
         .avatar-container {
             width: 80px; height: 80px; 
             position: relative; 
@@ -52,39 +52,15 @@
             background: #fff; margin: 0 auto; overflow: hidden; border: 3px solid white;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
-        
         .avatar-layer { 
-            position: absolute; 
-            top: 50%; left: 50%; 
-            transform: translate(-50%, -50%); 
-            width: 100%; height: 100%;
-            display: flex; align-items: center; justify-content: center;
-            pointer-events: none; 
-            line-height: 1; 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+            pointer-events: none; line-height: 1; 
         }
-        
         .layer-face { font-size: 3rem; z-index: 1; }
         .layer-hat  { font-size: 3rem; z-index: 2; }
         .layer-acc  { font-size: 1.5rem; z-index: 3; }
         .avatar-bg  { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 0; }
-
-        /* --- GAME BOARD SHAPES (NEW) --- */
-        .game-shape {
-            width: 65%;
-            height: 65%;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-            transition: transform 0.2s;
-        }
-
-        /* Player X = Square */
-        .shape-square {
-            border-radius: 8px;
-        }
-
-        /* Player O = Circle */
-        .shape-circle {
-            border-radius: 50%;
-        }
 
         /* BUILDER UI */
         .builder-section { margin: 15px 0; }
@@ -98,19 +74,22 @@
         #header-bar { display: flex; justify-content: space-between; width: 100%; max-width: 600px; margin-bottom: 10px; padding: 10px; border-radius: 15px; align-items: center; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); }
         #profile-display-mini { display: flex; align-items: center; gap: 10px; cursor: pointer; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 25px; border: 1px solid rgba(255,255,255,0.2); }
         
-        /* BOARD */
+        /* BOARD STYLES */
         .ultimate-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 10px; border-radius: 15px; aspect-ratio: 1; margin: 0 auto; position: relative; z-index: 10; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37); }
         .mini-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; background-color: rgba(0,0,0,0.2); padding: 3px; border-radius: 4px; position: relative; border: 3px solid transparent; transition: all 0.3s; box-sizing: border-box; overflow: hidden; }
         
-        /* Winners */
+        /* WINNERS (Big Grid) */
         .mini-board.won-x::after, .mini-board.won-o::after { content: attr(data-winner); position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; font-size: 6rem; font-weight: 900; z-index: 20; backdrop-filter: blur(8px); background-color: rgba(255, 255, 255, 0.2); }
         .mini-board.won-x::after { color: var(--x-color); text-shadow: 2px 2px 0px rgba(0,0,0,0.2); }
         .mini-board.won-o::after { color: var(--o-color); text-shadow: 2px 2px 0px rgba(0,0,0,0.2); }
         
-        .cell { background-color: var(--cell-bg); border-radius: 2px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; cursor: pointer; aspect-ratio: 1; overflow: hidden; }
-        .cell.has-avatar { color: transparent !important; }
-        .cell:hover .game-shape { transform: scale(1.1); }
+        /* CELLS (Small Grid) */
+        .cell { background-color: var(--cell-bg); border-radius: 2px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; cursor: pointer; aspect-ratio: 1; overflow: hidden; font-family: sans-serif; }
         
+        /* Colors for X and O */
+        .cell.x { color: var(--x-color); font-weight: 900; }
+        .cell.o { color: var(--o-color); font-weight: 900; }
+
         .mini-board.active { border-color: var(--highlight); box-shadow: 0 0 20px var(--highlight); background: rgba(255, 255, 255, 0.05); }
 
         /* MODALS */
@@ -223,7 +202,7 @@
     </div>
 
     <script>
-        // --- 1. OFFSET CONFIGURATION ---
+        // --- 1. OFFSET CONFIGURATION (For Profile Avatar) ---
         const ITEM_OFFSETS = {
             '🧢': [ -50, -85, 1.0 ], 
             '🎩': [ -50, -95, 1.3 ], 
@@ -241,10 +220,7 @@
             '⭐': [ -20, -20, 0.6 ] 
         };
 
-        const botAvatar = { color: '#95a5a6', face: '🤖', hat: '⛑️', acc: '' };
-        const opponentAvatar = { color: '#e74c3c', face: '😈', hat: '👑', acc: '🕶️' }; 
-
-        // --- 2. RENDER ENGINE (For Profile & Avatar Builder) ---
+        // --- 2. RENDER ENGINE (For Profile Only) ---
         function renderAvatar(config, elementId) {
             const el = (typeof elementId === 'string') ? document.getElementById(elementId) : elementId;
             if(!el) return;
@@ -317,7 +293,7 @@
             renderAvatar(currentUser.avatar, 'header-avatar-render');
         }
 
-        // Avatar Builder
+        // Avatar Builder Logic
         const avatarOptions = {
             colors: ['#e74c3c', '#e67e22', '#f1c40f', '#2ecc71', '#3498db', '#9b59b6', '#34495e', '#ecf0f1'],
             faces: ['🙂', '😎', '😆', '😡', '😱', '🤖', '💀', '🤡', '🐯', '👽'],
@@ -403,7 +379,7 @@
             renderBoard();
         }
 
-        // --- UPDATED: RENDER BOARD WITH SHAPES ---
+        // --- UPDATED: RENDER BOARD WITH CLASSIC RED X / BLUE O ---
         function renderBoard() {
             const b = document.getElementById('game-board'); b.innerHTML = '';
             for(let i=0; i<9; i++) {
@@ -416,25 +392,10 @@
                     const val = boardState[i][j];
                     
                     if(val) {
-                        c.classList.add('has-avatar'); 
-                        
-                        // NEW: GEOMETRIC SHAPES
-                        const shape = document.createElement('div');
-                        shape.className = 'game-shape';
-                        
-                        let color = '';
-                        if(val === mySymbol) {
-                            // Player = Square
-                            color = currentUser.avatar.color; 
-                            shape.classList.add('shape-square'); 
-                        } else {
-                            // Enemy = Circle
-                            color = isAiGame ? botAvatar.color : opponentAvatar.color;
-                            shape.classList.add('shape-circle');
-                        }
-                        
-                        shape.style.backgroundColor = color;
-                        c.appendChild(shape);
+                        // Just render the Text Character (X or O)
+                        c.textContent = val;
+                        // Add class .x or .o to trigger the Red/Blue colors defined in CSS
+                        c.classList.add(val.toLowerCase());
                     }
                     c.onclick = () => handleMove(i, j);
                     m.appendChild(c);
