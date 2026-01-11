@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Ultimate TTT: Centered Edition</title>
+    <title>Ultimate TTT: Geometric Edition</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -43,44 +43,48 @@
         .auth-box { background: rgba(0,0,0,0.6); padding: 30px; border-radius: 20px; backdrop-filter: blur(10px); width: 90%; max-width: 400px; margin: 20px auto; border: 1px solid rgba(255,255,255,0.2); }
         input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: none; font-size: 1rem; box-sizing: border-box; }
         
-        /* --- AVATAR SYSTEM (FIXED CENTERING) --- */
+        /* --- AVATAR SYSTEM (For Profile & Builder) --- */
         .avatar-container {
             width: 80px; height: 80px; 
             position: relative; 
             border-radius: 50%; 
-            display: inline-block; /* Changed from inline-flex to handle absolute kids better */
+            display: inline-block; 
             background: #fff; margin: 0 auto; overflow: hidden; border: 3px solid white;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
         
-        /* Layers are absolutely positioned */
         .avatar-layer { 
             position: absolute; 
             top: 50%; left: 50%; 
-            /* THIS RESTORES THE CENTERING FOR THE FACE */
             transform: translate(-50%, -50%); 
-            
             width: 100%; height: 100%;
-            display: flex; align-items: center; justify-content: center; /* Flex centering inside the layer */
+            display: flex; align-items: center; justify-content: center;
             pointer-events: none; 
             line-height: 1; 
         }
         
-        /* Font Sizes */
         .layer-face { font-size: 3rem; z-index: 1; }
         .layer-hat  { font-size: 3rem; z-index: 2; }
         .layer-acc  { font-size: 1.5rem; z-index: 3; }
         .avatar-bg  { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 0; }
-        
-        /* MINI AVATAR (For Board) */
-        .avatar-container.mini {
-            width: 100%; height: 100%;
-            border: none; box-shadow: none; border-radius: 2px; background: transparent;
+
+        /* --- GAME BOARD SHAPES (NEW) --- */
+        .game-shape {
+            width: 65%;
+            height: 65%;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
         }
-        .avatar-container.mini .layer-face { font-size: 1.8rem; }
-        .avatar-container.mini .layer-hat  { font-size: 1.8rem; }
-        .avatar-container.mini .layer-acc  { font-size: 1rem; }
-        .avatar-container.mini .avatar-bg  { opacity: 0.8; }
+
+        /* Player X = Square */
+        .shape-square {
+            border-radius: 8px;
+        }
+
+        /* Player O = Circle */
+        .shape-circle {
+            border-radius: 50%;
+        }
 
         /* BUILDER UI */
         .builder-section { margin: 15px 0; }
@@ -104,9 +108,8 @@
         .mini-board.won-o::after { color: var(--o-color); text-shadow: 2px 2px 0px rgba(0,0,0,0.2); }
         
         .cell { background-color: var(--cell-bg); border-radius: 2px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; cursor: pointer; aspect-ratio: 1; overflow: hidden; }
-        
-        /* Hide text when avatar is there */
         .cell.has-avatar { color: transparent !important; }
+        .cell:hover .game-shape { transform: scale(1.1); }
         
         .mini-board.active { border-color: var(--highlight); box-shadow: 0 0 20px var(--highlight); background: rgba(255, 255, 255, 0.05); }
 
@@ -221,21 +224,15 @@
 
     <script>
         // --- 1. OFFSET CONFIGURATION ---
-        // Format: [X-Percent, Y-Percent, Scale]
-        // Default Center is -50, -50.
-        // We adjusted the Y-values slightly because the Flexbox centering handles the baseline better now.
         const ITEM_OFFSETS = {
-            // HATS
             '🧢': [ -50, -85, 1.0 ], 
             '🎩': [ -50, -95, 1.3 ], 
             '👑': [ -50, -90, 1.3 ], 
             '⛑️': [ -50, -80, 1.1 ], 
-            '🎧': [ -50, -50, 1.5 ], // Centered relative to container
+            '🎧': [ -50, -50, 1.5 ],
             '🎀': [ -50, -90, 1.2 ], 
             '🎓': [ -50, -85, 1.4 ], 
             '🦄': [ -50, -80, 1.3 ], 
-
-            // ACCESSORIES
             '👓': [ -50, -55, 1.2 ], 
             '🕶️': [ -50, -55, 1.2 ], 
             '😷': [ -50, -35, 1.1 ], 
@@ -247,8 +244,8 @@
         const botAvatar = { color: '#95a5a6', face: '🤖', hat: '⛑️', acc: '' };
         const opponentAvatar = { color: '#e74c3c', face: '😈', hat: '👑', acc: '🕶️' }; 
 
-        // --- 2. RENDER ENGINE ---
-        function renderAvatar(config, elementId, isBoard = false) {
+        // --- 2. RENDER ENGINE (For Profile & Avatar Builder) ---
+        function renderAvatar(config, elementId) {
             const el = (typeof elementId === 'string') ? document.getElementById(elementId) : elementId;
             if(!el) return;
 
@@ -261,10 +258,7 @@
                 return `transform: translate(${def[0]}%, ${def[1]}%) scale(${def[2]});`;
             };
 
-            const addClass = isBoard ? 'mini' : '';
-
-            // Note: Layer-face relies on CSS for centering now
-            el.className = `avatar-container ${addClass}`;
+            el.className = `avatar-container`;
             el.innerHTML = `
                 <div class="avatar-bg" style="background-color: ${config.color}"></div>
                 <div class="avatar-layer layer-face">${config.face}</div>
@@ -387,7 +381,6 @@
             switchScreen('game-screen');
             initGame();
             
-            // Puzzle UI Logic
             document.getElementById('game-status').innerHTML = `
                 <span style="color:#f1c40f">📅 Daily Puzzle</span><br>
                 <span style="font-size:0.8rem; opacity:0.8">You are playing as <b style="color:var(--x-color)">X</b></span>
@@ -410,6 +403,7 @@
             renderBoard();
         }
 
+        // --- UPDATED: RENDER BOARD WITH SHAPES ---
         function renderBoard() {
             const b = document.getElementById('game-board'); b.innerHTML = '';
             for(let i=0; i<9; i++) {
@@ -423,17 +417,24 @@
                     
                     if(val) {
                         c.classList.add('has-avatar'); 
-                        c.classList.add(val.toLowerCase());
                         
-                        const avDiv = document.createElement('div');
-                        avDiv.style.width = '100%'; avDiv.style.height = '100%';
+                        // NEW: GEOMETRIC SHAPES
+                        const shape = document.createElement('div');
+                        shape.className = 'game-shape';
                         
+                        let color = '';
                         if(val === mySymbol) {
-                            renderAvatar(currentUser.avatar, avDiv, true);
+                            // Player = Square
+                            color = currentUser.avatar.color; 
+                            shape.classList.add('shape-square'); 
                         } else {
-                            renderAvatar(isAiGame ? botAvatar : opponentAvatar, avDiv, true);
+                            // Enemy = Circle
+                            color = isAiGame ? botAvatar.color : opponentAvatar.color;
+                            shape.classList.add('shape-circle');
                         }
-                        c.appendChild(avDiv);
+                        
+                        shape.style.backgroundColor = color;
+                        c.appendChild(shape);
                     }
                     c.onclick = () => handleMove(i, j);
                     m.appendChild(c);
