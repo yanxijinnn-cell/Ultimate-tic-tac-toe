@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ultimate TTT: Centered Edition</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#2c3e50">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <style>
+        /* --- CORE VARIABLES --- */
+        :root { --bg-color: #2c3e50; --panel-bg: rgba(255, 255, 255, 0.1); --board-bg: rgba(255, 255, 255, 0.05); --cell-bg: rgba(255, 255, 255, 0.9); --highlight: #f1c40f; --x-color: #ff4757; --o-color: #2ed573; --text-color: #ffffff; --font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        /* BACKGROUND */
+        body { 
+            font-family: var(--font); color: var(--text-color); 
+            display: flex; flex-direction: column; align-items: center; 
+            min-height: 100vh; margin: 0; padding: 10px; 
+            overflow-x: hidden; touch-action: manipulation;
+            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+            background-size: 400% 400%; animation: gradient 15s ease infinite;
+        }
+        @keyframes gradient { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+
+        /* SCREENS */
+        .screen { display: none; width: 100%; max-width: 600px; text-align: center; padding-bottom: 80px; animation: fadeIn 0.5s; }
+        .screen.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* BUTTONS */
+        button { padding: 12px 24px; margin: 5px; cursor: pointer; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(5px); border: 1px solid rgba(255, 255, 255, 0.3); color: white; border-radius: 25px; font-size: 1rem; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.2s; }
+        button:hover { transform: translateY(-2px); background: rgba(255, 255, 255, 0.3); }
+        button:active { transform: translateY(2px); box-shadow: none; }
+        button.primary-btn { background: var(--highlight); color: black; width: 100%; margin-top: 10px; }
+        button.secondary-btn { background: #34495e; width: 100%; margin-top: 10px; }
+        
+        /* AUTH FORMS */
+        .auth-box { background: rgba(0,0,0,0.6); padding: 30px; border-radius: 20px; backdrop-filter: blur(10px); width: 90%; max-width: 400px; margin: 20px auto; border: 1px solid rgba(255,255,255,0.2); }
+        input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: none; font-size: 1rem; box-sizing: border-box; }
+        
+        /* --- AVATAR SYSTEM (FIXED CENTERING) --- */
+        .avatar-container {
+            width: 80px; height: 80px; 
+            position: relative; 
+            border-radius: 50%; 
+            display: inline-block; /* Changed from inline-flex to handle absolute kids better */
+            background: #fff; margin: 0 auto; overflow: hidden; border: 3px solid white;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        
+        /* Layers are absolutely positioned */
+        .avatar-layer { 
+            position: absolute; 
+            top: 50%; left: 50%; 
+            /* THIS RESTORES THE CENTERING FOR THE FACE */
+            transform: translate(-50%, -50%); 
+            
+            width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: center; /* Flex centering inside the layer */
+            pointer-events: none; 
+            line-height: 1; 
+        }
+        
+        /* Font Sizes */
+        .layer-face { font-size: 3rem; z-index: 1; }
+        .layer-hat  { font-size: 3rem; z-index: 2; }
+        .layer-acc  { font-size: 1.5rem; z-index: 3; }
+        .avatar-bg  { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 0; }
+        
+        /* MINI AVATAR (For Board) */
+        .avatar-container.mini {
+            width: 100%; height: 100%;
+            border: none; box-shadow: none; border-radius: 2px; background: transparent;
+        }
+        .avatar-container.mini .layer-face { font-size: 1.8rem; }
+        .avatar-container.mini .layer-hat  { font-size: 1.8rem; }
+        .avatar-container.mini .layer-acc  { font-size: 1rem; }
+        .avatar-container.mini .avatar-bg  { opacity: 0.8; }
+
+        /* BUILDER UI */
+        .builder-section { margin: 15px 0; }
+        .builder-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: #ddd; margin-bottom: 5px; display: block; }
+        .option-scroller { display: flex; gap: 10px; overflow-x: auto; padding: 5px; scrollbar-width: none; }
+        .option-item { font-size: 2rem; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 10px; cursor: pointer; min-width: 50px; }
+        .option-item.selected { background: var(--highlight); box-shadow: 0 0 10px var(--highlight); }
+        .color-dot { width: 40px; height: 40px; border-radius: 50%; border: 2px solid white; cursor: pointer; flex-shrink: 0; }
+
+        /* HEADER */
+        #header-bar { display: flex; justify-content: space-between; width: 100%; max-width: 600px; margin-bottom: 10px; padding: 10px; border-radius: 15px; align-items: center; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); }
+        #profile-display-mini { display: flex; align-items: center; gap: 10px; cursor: pointer; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 25px; border: 1px solid rgba(255,255,255,0.2); }
+        
+        /* BOARD */
+        .ultimate-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 10px; border-radius: 15px; aspect-ratio: 1; margin: 0 auto; position: relative; z-index: 10; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37); }
+        .mini-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; background-color: rgba(0,0,0,0.2); padding: 3px; border-radius: 4px; position: relative; border: 3px solid transparent; transition: all 0.3s; box-sizing: border-box; overflow: hidden; }
+        
+        /* Winners */
+        .mini-board.won-x::after, .mini-board.won-o::after { content: attr(data-winner); position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; font-size: 6rem; font-weight: 900; z-index: 20; backdrop-filter: blur(8px); background-color: rgba(255, 255, 255, 0.2); }
+        .mini-board.won-x::after { color: var(--x-color); text-shadow: 2px 2px 0px rgba(0,0,0,0.2); }
+        .mini-board.won-o::after { color: var(--o-color); text-shadow: 2px 2px 0px rgba(0,0,0,0.2); }
+        
+        .cell { background-color: var(--cell-bg); border-radius: 2px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; cursor: pointer; aspect-ratio: 1; overflow: hidden; }
+        
+        /* Hide text when avatar is there */
+        .cell.has-avatar { color: transparent !important; }
+        
+        .mini-board.active { border-color: var(--highlight); box-shadow: 0 0 20px var(--highlight); background: rgba(255, 255, 255, 0.05); }
+
+        /* MODALS */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); backdrop-filter: blur(10px); z-index: 500; display: none; align-items: center; justify-content: center; }
+        .modal-content { background: #2c3e50; color: white; padding: 25px; border-radius: 15px; max-width: 90%; max-height: 80vh; overflow-y: auto; text-align: center; border: 1px solid rgba(255,255,255,0.2); }
+        
+        audio { display: none; }
+    </style>
+</head>
+<body>
+
+    <audio id="snd-move" src="move.mp3"></audio>
+    <audio id="snd-notify" src="notify.mp3"></audio>
+
+    <div id="auth-screen" class="screen active">
+        <h1 style="font-size:3rem; margin-bottom:10px;">Ultimate TTT</h1>
+        <h4 style="opacity:0.8; margin-top:-15px;">Login to Play</h4>
+        
+        <div class="auth-box" id="login-form">
+            <h2>Welcome Back</h2>
+            <input type="text" id="login-user" placeholder="Username">
+            <input type="password" id="login-pass" placeholder="Password">
+            <button onclick="handleLogin()" class="primary-btn">Log In</button>
+            <p style="font-size:0.8rem; margin-top:15px; cursor:pointer; color:#f1c40f;" onclick="showRegister()">New here? Create Account</p>
+        </div>
+
+        <div class="auth-box" id="register-form" style="display:none;">
+            <h2>Create Account</h2>
+            <input type="text" id="reg-user" placeholder="Username">
+            <input type="password" id="reg-pass" placeholder="Password">
+            <button onclick="handleRegister()" class="primary-btn">Sign Up</button>
+            <p style="font-size:0.8rem; margin-top:15px; cursor:pointer;" onclick="showLogin()">Back to Login</p>
+        </div>
+    </div>
+
+    <div id="home-screen" class="screen">
+        <div id="header-bar">
+            <div id="profile-display-mini" onclick="openAvatarBuilder()">
+                <div class="avatar-container" style="width:40px; height:40px; border:none;" id="header-avatar-render"></div>
+                <span id="header-username" style="font-weight:bold;">Player</span>
+            </div>
+            <button onclick="logout()" style="padding:5px 10px; font-size:0.8rem; background:#e74c3c;">Logout</button>
+        </div>
+
+        <h1 style="margin:20px 0; font-size: 2.5rem; text-shadow: 0 4px 10px rgba(0,0,0,0.3);">Dashboard</h1>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; width:100%; max-width:600px;">
+            <button onclick="startLocalGame()" class="primary-btn" style="height:100px; font-size:1.2rem;">🤖 Play AI</button>
+            <button onclick="window.initHost()" class="primary-btn" style="height:100px; font-size:1.2rem; background:#8e44ad;">🌍 Host Online</button>
+            <button onclick="startDailyPuzzle()" style="background:#e67e22;">📅 Daily Puzzle</button>
+            <button onclick="openAvatarBuilder()" style="background:#f39c12;">🎨 Design Avatar</button>
+        </div>
+
+        <div style="margin-top:20px;">
+            <input type="text" id="remoteIdInput" placeholder="Enter Friend's Code" style="padding:10px; border-radius:5px; text-align:center; width:200px;">
+            <button onclick="window.joinGame()" class="secondary-btn" style="width:auto;">Join Game</button>
+        </div>
+    </div>
+
+    <div id="avatar-modal" class="modal">
+        <div class="modal-content" style="width:400px;">
+            <h2>Design Your Avatar</h2>
+            
+            <div class="avatar-container" id="builder-preview" style="width:120px; height:120px; margin-bottom:20px;"></div>
+
+            <div class="builder-section">
+                <span class="builder-label">Background Color</span>
+                <div class="option-scroller" id="color-options"></div>
+            </div>
+            <div class="builder-section">
+                <span class="builder-label">Face</span>
+                <div class="option-scroller" id="face-options"></div>
+            </div>
+            <div class="builder-section">
+                <span class="builder-label">Hat</span>
+                <div class="option-scroller" id="hat-options"></div>
+            </div>
+            <div class="builder-section">
+                <span class="builder-label">Accessory</span>
+                <div class="option-scroller" id="acc-options"></div>
+            </div>
+
+            <button onclick="saveAvatar()" class="primary-btn">Save Look</button>
+            <button onclick="closeAvatarBuilder()" class="secondary-btn">Cancel</button>
+        </div>
+    </div>
+
+    <div id="game-screen" class="screen">
+        <div style="margin-bottom:10px; display:flex; justify-content:space-between; width:100%; max-width:600px; align-items:center;">
+            <button onclick="goHome()" style="background:#e74c3c;">Exit</button>
+            <div id="game-status" style="font-weight:bold; font-size:1rem; text-align:right;">Playing...</div>
+        </div>
+        <div class="ultimate-board" id="game-board"></div>
+        <div id="ai-loader" style="display:none; margin-top:10px;">🤖 AI Thinking...</div>
+        
+        <div id="chat-container" style="width:100%; max-width:600px; margin-top:15px; background:rgba(0,0,0,0.3); border-radius:10px; padding:10px;">
+            <div id="chat-window" style="height:100px; overflow-y:scroll; text-align:left; color:white; margin-bottom:5px;"></div>
+            <div style="display:flex;"><input type="text" id="msg-input" placeholder="Chat..."><button onclick="sendChatMessage()">Send</button></div>
+        </div>
+    </div>
+
+    <div id="lobby-screen" class="screen">
+        <h2>Lobby</h2>
+        <div style="background:rgba(0,0,0,0.5); padding:15px; border-radius:10px; margin:20px;">
+            <p>Your Join Code:</p>
+            <h1 id="my-id-display" style="user-select:all; color:#2ecc71;">...</h1>
+        </div>
+        <button onclick="copyLink()" class="primary-btn">Copy Code</button>
+        <button onclick="goHome()" class="secondary-btn">Cancel</button>
+    </div>
+
+    <script>
+        // --- 1. OFFSET CONFIGURATION ---
+        // Format: [X-Percent, Y-Percent, Scale]
+        // Default Center is -50, -50.
+        // We adjusted the Y-values slightly because the Flexbox centering handles the baseline better now.
+        const ITEM_OFFSETS = {
+            // HATS
+            '🧢': [ -50, -85, 1.0 ], 
+            '🎩': [ -50, -95, 1.3 ], 
+            '👑': [ -50, -90, 1.3 ], 
+            '⛑️': [ -50, -80, 1.1 ], 
+            '🎧': [ -50, -50, 1.5 ], // Centered relative to container
+            '🎀': [ -50, -90, 1.2 ], 
+            '🎓': [ -50, -85, 1.4 ], 
+            '🦄': [ -50, -80, 1.3 ], 
+
+            // ACCESSORIES
+            '👓': [ -50, -55, 1.2 ], 
+            '🕶️': [ -50, -55, 1.2 ], 
+            '😷': [ -50, -35, 1.1 ], 
+            '🧣': [ -50,  25, 1.6 ], 
+            '💎': [ -50,  30, 0.8 ], 
+            '⭐': [ -20, -20, 0.6 ] 
+        };
+
+        const botAvatar = { color: '#95a5a6', face: '🤖', hat: '⛑️', acc: '' };
+        const opponentAvatar = { color: '#e74c3c', face: '😈', hat: '👑', acc: '🕶️' }; 
+
+        // --- 2. RENDER ENGINE ---
+        function renderAvatar(config, elementId, isBoard = false) {
+            const el = (typeof elementId === 'string') ? document.getElementById(elementId) : elementId;
+            if(!el) return;
+
+            const getStyle = (item, type) => {
+                let def = ITEM_OFFSETS[item];
+                if (!def) {
+                    if (type === 'hat') def = [-50, -80, 1]; 
+                    else def = [-50, -50, 1];
+                }
+                return `transform: translate(${def[0]}%, ${def[1]}%) scale(${def[2]});`;
+            };
+
+            const addClass = isBoard ? 'mini' : '';
+
+            // Note: Layer-face relies on CSS for centering now
+            el.className = `avatar-container ${addClass}`;
+            el.innerHTML = `
+                <div class="avatar-bg" style="background-color: ${config.color}"></div>
+                <div class="avatar-layer layer-face">${config.face}</div>
+                <div class="avatar-layer layer-hat" style="${getStyle(config.hat, 'hat')}">${config.hat}</div>
+                <div class="avatar-layer layer-acc" style="${getStyle(config.acc, 'acc')}">${config.acc}</div>
+            `;
+        }
+
+        // --- 3. CORE APP LOGIC ---
+        let currentUser = null;
+        let boardState=[], macroBoardState=[], activeMiniBoard=-1, currentPlayer='X', mySymbol='X', isAiGame=false, isPuzzle=false;
+        let conn=null, peer=null;
+
+        function getDB() { return JSON.parse(localStorage.getItem('utt_db')) || { users: [] }; }
+        function saveDB(db) { localStorage.setItem('utt_db', JSON.stringify(db)); }
+
+        // Auth
+        function handleRegister() {
+            const u = document.getElementById('reg-user').value.trim();
+            const p = document.getElementById('reg-pass').value.trim();
+            if(!u || !p) return alert("Please fill all fields");
+            const db = getDB();
+            if(db.users.find(user => user.username === u)) return alert("Username taken!");
+            const newUser = {
+                username: u, password: p,
+                avatar: { color: '#3498db', face: '🙂', hat: '', acc: '' },
+                stats: { wins: 0, losses: 0, games: 0 }
+            };
+            db.users.push(newUser); saveDB(db);
+            alert("Account created!"); showLogin();
+        }
+
+        function handleLogin() {
+            const u = document.getElementById('login-user').value.trim();
+            const p = document.getElementById('login-pass').value.trim();
+            const db = getDB();
+            const user = db.users.find(user => user.username === u && user.password === p);
+            if(user) { currentUser = user; loadApp(); } 
+            else { alert("Invalid credentials"); }
+        }
+
+        function logout() {
+            currentUser = null;
+            document.getElementById('home-screen').classList.remove('active');
+            document.getElementById('auth-screen').classList.add('active');
+            document.getElementById('login-pass').value = '';
+        }
+
+        function showRegister() { document.getElementById('login-form').style.display='none'; document.getElementById('register-form').style.display='block'; }
+        function showLogin() { document.getElementById('login-form').style.display='block'; document.getElementById('register-form').style.display='none'; }
+
+        function loadApp() {
+            document.getElementById('auth-screen').classList.remove('active');
+            document.getElementById('home-screen').classList.add('active');
+            document.getElementById('header-username').textContent = currentUser.username;
+            renderAvatar(currentUser.avatar, 'header-avatar-render');
+        }
+
+        // Avatar Builder
+        const avatarOptions = {
+            colors: ['#e74c3c', '#e67e22', '#f1c40f', '#2ecc71', '#3498db', '#9b59b6', '#34495e', '#ecf0f1'],
+            faces: ['🙂', '😎', '😆', '😡', '😱', '🤖', '💀', '🤡', '🐯', '👽'],
+            hats: ['', '🧢', '🎩', '👑', '⛑️', '🎧', '🎀', '🎓', '🦄'],
+            accs: ['', '👓', '🕶️', '😷', '🧣', '💎', '⭐']
+        };
+        let tempAvatarConfig = {};
+
+        function openAvatarBuilder() {
+            tempAvatarConfig = { ...currentUser.avatar };
+            document.getElementById('avatar-modal').style.display = 'flex';
+            populateBuilder();
+            updatePreview();
+        }
+
+        function populateBuilder() {
+            const createOpt = (containerId, items, type) => {
+                const c = document.getElementById(containerId);
+                c.innerHTML = '';
+                items.forEach(item => {
+                    const el = document.createElement('div');
+                    if(type === 'color') {
+                        el.className = 'color-dot'; el.style.backgroundColor = item;
+                    } else {
+                        el.className = 'option-item'; el.textContent = item === '' ? '🚫' : item;
+                    }
+                    el.onclick = () => { tempAvatarConfig[type] = item; updatePreview(); };
+                    c.appendChild(el);
+                });
+            };
+            createOpt('color-options', avatarOptions.colors, 'color');
+            createOpt('face-options', avatarOptions.faces, 'face');
+            createOpt('hat-options', avatarOptions.hats, 'hat');
+            createOpt('acc-options', avatarOptions.accs, 'acc');
+        }
+
+        function updatePreview() { renderAvatar(tempAvatarConfig, 'builder-preview'); }
+
+        function saveAvatar() {
+            currentUser.avatar = { ...tempAvatarConfig };
+            const db = getDB();
+            const idx = db.users.findIndex(u => u.username === currentUser.username);
+            if(idx !== -1) { db.users[idx] = currentUser; saveDB(db); }
+            renderAvatar(currentUser.avatar, 'header-avatar-render');
+            document.getElementById('avatar-modal').style.display = 'none';
+        }
+        function closeAvatarBuilder() { document.getElementById('avatar-modal').style.display = 'none'; }
+
+        // --- GAME PLAY LOGIC ---
+        function startLocalGame() {
+            isAiGame = true; mySymbol = 'X'; isPuzzle = false;
+            switchScreen('game-screen');
+            initGame();
+            document.getElementById('game-status').innerHTML = `Playing vs AI`;
+        }
+
+        function startDailyPuzzle() {
+            const today = new Date().toDateString(); 
+            let seed = 0; for(let i=0; i<today.length; i++) seed += today.charCodeAt(i);
+            isAiGame = true; isPuzzle = true; mySymbol = 'X';
+            switchScreen('game-screen');
+            initGame();
+            
+            // Puzzle UI Logic
+            document.getElementById('game-status').innerHTML = `
+                <span style="color:#f1c40f">📅 Daily Puzzle</span><br>
+                <span style="font-size:0.8rem; opacity:0.8">You are playing as <b style="color:var(--x-color)">X</b></span>
+            `;
+            
+            let rnd = (n) => { let x = Math.sin(seed + n) * 10000; return x - Math.floor(x); };
+            for(let i=0; i<12; i++) {
+                let b = Math.floor(rnd(i)*9);
+                let c = Math.floor(rnd(i+50)*9);
+                if(!boardState[b][c] && !macroBoardState[b]) boardState[b][c] = (i%2==0 ? 'X' : 'O');
+            }
+            renderBoard();
+        }
+
+        function initGame() {
+            boardState = Array(9).fill(null).map(()=>Array(9).fill(null));
+            macroBoardState = Array(9).fill(null);
+            activeMiniBoard = -1;
+            currentPlayer = 'X';
+            renderBoard();
+        }
+
+        function renderBoard() {
+            const b = document.getElementById('game-board'); b.innerHTML = '';
+            for(let i=0; i<9; i++) {
+                const m = document.createElement('div'); m.className = 'mini-board';
+                if(macroBoardState[i]) { m.classList.add('won-'+macroBoardState[i].toLowerCase()); m.setAttribute('data-winner', macroBoardState[i]); }
+                if(activeMiniBoard === -1 || activeMiniBoard === i) { if(!macroBoardState[i]) m.classList.add('active'); }
+                
+                for(let j=0; j<9; j++) {
+                    const c = document.createElement('div'); c.className = 'cell';
+                    const val = boardState[i][j];
+                    
+                    if(val) {
+                        c.classList.add('has-avatar'); 
+                        c.classList.add(val.toLowerCase());
+                        
+                        const avDiv = document.createElement('div');
+                        avDiv.style.width = '100%'; avDiv.style.height = '100%';
+                        
+                        if(val === mySymbol) {
+                            renderAvatar(currentUser.avatar, avDiv, true);
+                        } else {
+                            renderAvatar(isAiGame ? botAvatar : opponentAvatar, avDiv, true);
+                        }
+                        c.appendChild(avDiv);
+                    }
+                    c.onclick = () => handleMove(i, j);
+                    m.appendChild(c);
+                }
+                b.appendChild(m);
+            }
+        }
+
+        function handleMove(bi, ci) {
+            if(isAiGame && currentPlayer !== mySymbol) return;
+            if(!isAiGame && currentPlayer !== mySymbol) return; 
+            if(macroBoardState[bi] || boardState[bi][ci]) return;
+            if(activeMiniBoard !== -1 && activeMiniBoard !== bi) return;
+
+            makeMove(bi, ci, currentPlayer);
+            if(!isAiGame && conn) conn.send({type:'move', bi, ci});
+            if(isAiGame && currentPlayer === 'O') {
+                document.getElementById('ai-loader').style.display = 'block';
+                setTimeout(playAiMove, 500);
+            }
+        }
+
+        function makeMove(bi, ci, p) {
+            boardState[bi][ci] = p;
+            checkMiniWin(bi, p);
+            activeMiniBoard = macroBoardState[ci] ? -1 : ci;
+            currentPlayer = p === 'X' ? 'O' : 'X';
+            renderBoard();
+            document.getElementById('snd-move').play().catch(()=>{});
+        }
+
+        function checkMiniWin(bi, p) {
+            const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+            if(wins.some(c => boardState[bi][c[0]] === p && boardState[bi][c[1]] === p && boardState[bi][c[2]] === p)) {
+                macroBoardState[bi] = p;
+                checkGlobalWin(p);
+            } else if (boardState[bi].every(c => c !== null)) {
+                macroBoardState[bi] = 'T'; 
+            }
+        }
+
+        function checkGlobalWin(p) {
+            const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+            if(wins.some(c => macroBoardState[c[0]] === p && macroBoardState[c[1]] === p && macroBoardState[c[2]] === p)) {
+                confetti({particleCount: 200, spread: 100});
+                document.getElementById('snd-notify').play().catch(()=>{});
+                alert(p + " WINS THE GAME!");
+                if(p === mySymbol) { currentUser.stats.wins++; saveDB(getDB()); }
+                setTimeout(goHome, 2000);
+            }
+        }
+
+        function playAiMove() {
+            let targets = [];
+            if(activeMiniBoard !== -1 && !macroBoardState[activeMiniBoard]) targets = [activeMiniBoard];
+            else macroBoardState.forEach((s, i) => { if(!s) targets.push(i); });
+            
+            if(targets.length > 0) {
+                const b = targets[Math.floor(Math.random()*targets.length)];
+                const empties = [];
+                boardState[b].forEach((c, i) => { if(!c) empties.push(i); });
+                const c = empties[Math.floor(Math.random()*empties.length)];
+                makeMove(b, c, 'O');
+            }
+            document.getElementById('ai-loader').style.display = 'none';
+        }
+
+        function switchScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+        function goHome() { 
+            if(conn) { conn.close(); conn=null; }
+            switchScreen('home-screen'); 
+        }
+
+        // --- MULTIPLAYER ---
+        window.initHost = () => { isAiGame=false; mySymbol='X'; isPuzzle=false; setupPeer(); }
+        window.joinGame = () => { isAiGame=false; mySymbol='O'; isPuzzle=false; const id=document.getElementById('remoteIdInput').value; if(id) setupPeer(id); }
+        window.copyLink = () => { navigator.clipboard.writeText(peer.id); alert("Code Copied!"); }
+
+        function setupPeer(destId=null) {
+            peer = new Peer();
+            peer.on('open', id => {
+                if(destId) { conn = peer.connect(destId); conn.on('open', handleConn); }
+                else { switchScreen('lobby-screen'); document.getElementById('my-id-display').textContent = id; }
+            });
+            peer.on('connection', c => { conn = c; handleConn(); });
+        }
+        function handleConn() {
+            conn.on('data', d => {
+                if(d.type === 'move') makeMove(d.bi, d.ci, currentPlayer);
+                if(d.type === 'chat') {
+                    const box = document.getElementById('chat-window');
+                    box.innerHTML += `<div><strong>${d.user}:</strong> ${d.msg}</div>`;
+                    box.scrollTop = box.scrollHeight;
+                }
+            });
+            switchScreen('game-screen');
+            initGame();
+        }
+        function sendChatMessage() {
+            const txt = document.getElementById('msg-input').value;
+            if(!txt) return;
+            const box = document.getElementById('chat-window');
+            box.innerHTML += `<div style="color:var(--highlight);"><strong>Me:</strong> ${txt}</div>`;
+            box.scrollTop = box.scrollHeight;
+            if(conn) conn.send({type:'chat', msg:txt, user: currentUser.username});
+            document.getElementById('msg-input').value = '';
+        }
+    </script>
+</body>
+</html>
